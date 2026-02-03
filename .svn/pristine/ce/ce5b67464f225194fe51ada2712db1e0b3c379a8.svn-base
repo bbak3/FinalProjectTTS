@@ -1,0 +1,84 @@
+import React from 'react';
+import { Link, useLocation } from 'react-router-dom';
+
+import IconUser from '../../assets/icon/users.svg';
+import IconFolder from '../../assets/icon/folder.svg';
+import IconMegaphone from '../../assets/icon/megaphone.svg';
+import IconBox from '../../assets/icon/box.svg';
+import IconGraph from '../../assets/icon/chart-graph.svg';
+import IconCalendar from '../../assets/icon/calendar.svg';
+import IconChat from '../../assets/icon/chat-messages.svg';
+function LeftAdmin() {
+  const location = useLocation(); // 현재 URL 경로를 가져오기 위함 (선택사항)
+
+  // 상단 메뉴 그룹 데이터
+  const mainMenus = [    
+    { id: 'gnb-outpatient', label: '계정관리', icon: IconUser, path: 'http://localhost:5173/admin/employees' },
+    { id: 'gnb-myorder', label: '나의 오더', icon: IconFolder, path: 'http://localhost:5173/admin/macro' },
+    { id: 'gnb-nurse', label: '통계', icon: IconGraph, path: 'http://localhost:5173/admin/stats' },    
+    { id: 'gnb-order', label: '물품 발주', icon: IconBox, path: 'http://localhost:5173/admin/orders' },
+    
+  ];
+
+  // 하단 메뉴 그룹 데이터
+  const bottomMenus = [
+    { id: 'gnb-notice', label: '공지사항', icon: IconMegaphone, path: 'http://localhost:8060/admin/notice/list' },
+    { id: 'gnb-calendar', label: '일정', icon: IconCalendar, path: 'http://localhost:5173/calendar' },
+    { id: 'gnb-messenger', label: '메신저', icon: IconChat, path: '' },
+  ];
+
+  // 공통 메뉴 렌더링 함수
+  const renderMenuItem = (menu) => {
+    // 현재 경로 확인 (선택 사항)
+    const isActive = window.location.pathname === menu.path;
+    
+    return (
+      <li key={menu.id}>
+        <Link
+          to={menu.path}
+          id={menu.id}
+          className={`
+            flex flex-col items-center justify-center py-3 px-1 rounded-lg transition-colors duration-200
+            ${isActive ? 'bg-blue-50 text-blue-600' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}
+          `}
+        >
+          {/* 기존 CSS 클래스(icon 등)가 글로벌로 있다면 그대로 적용됩니다 */}
+          <img 
+            src={menu.icon} 
+            alt={menu.label} 
+            className={`w-6 h-6 mb-1 ${isActive ? '' : 'opacity-70'}`} 
+            style={{ filter: isActive ? 'invert(31%) sepia(94%) saturate(2251%) hue-rotate(211deg) brightness(95%) contrast(92%)' : 'none' }}
+          />
+          <span className="text-xs font-medium">{menu.label}</span>
+        </Link>
+      </li>
+    );
+  };
+
+  return (
+    <aside className="flex w-28 shrink-0 flex-col border-r border-neutral-200 bg-white h-full">
+      
+      {/* 로고 영역이 필요하다면 여기에 추가 */}
+
+      {/* 스크롤 영역 */}
+      <nav className="side-nav flex-1 flex flex-col overflow-y-auto px-2 py-4">
+        
+        {/* 첫 번째 그룹 */}
+        <ul className="flex flex-col gap-1 mb-6">
+          {mainMenus.map(menu => renderMenuItem(menu))}
+        </ul>
+        <div className="flex-grow"></div>
+        {/* 구분선 (필요 시) */}
+        <div className="border-t border-gray-100 my-2 mx-2"></div>
+
+        {/* 두 번째 그룹 */}
+        <ul className="flex flex-col gap-1 mt-2">
+          {bottomMenus.map(menu => renderMenuItem(menu))}
+        </ul>
+        
+      </nav>
+    </aside>
+  );
+}
+
+export default LeftAdmin;

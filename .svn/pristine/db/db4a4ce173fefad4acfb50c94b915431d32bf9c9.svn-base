@@ -1,0 +1,16 @@
+import React from 'react';
+
+function LeftAdmin() {
+  return (
+    <aside className="side-bar flex w-28 shrink-0 flex-col border-r border-neutral-200 bg-white overflow-y-auto custom-scrollbar">
+      {/* 네비게이션 메뉴 */}
+      <nav className="side-nav px-2 py-4">
+        <ul className="flex flex-col gap-2">
+           {/* 팀원분이 여기에 메뉴 리스트(Link 등)를 작성하실 공간 */}
+        </ul>
+      </nav>
+    </aside>
+  );
+}
+
+export default LeftAdmin;

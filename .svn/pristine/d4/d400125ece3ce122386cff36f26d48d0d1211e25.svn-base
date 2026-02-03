@@ -1,0 +1,27 @@
+import React, { useState } from 'react'
+import { useNotification } from './hooks/useNotification'
+import NotificationBell from './components/NotificationBell';
+import NotificationDropdown from './components/NotificationDropdown';
+
+const Notification = () => {
+
+    // 훅에서 데이터(알림 목록, 개수, 읽기 함수들) 가져옴
+    const {notifications, unreadCount, readOne, readAll} = useNotification(); 
+    const [isOpen, setIsOpen] = useState(false); // 드롭다운 열림 상태
+
+    return (
+        <div style={{position: 'relative', display: 'inline-block'}}>
+            {/* 종 아이콘 클릭 시 열림/닫힘 토글 */}
+            <NotificationBell count={unreadCount} onClick={() => setIsOpen(!isOpen)}/>
+            
+            {/* 알림 목록 창(열림 상태일 때만 표시) */}
+            {isOpen && (
+                <NotificationDropdown notifications={notifications} 
+                onReadOne={readOne} onReadAll={readAll}/>
+            )}
+        </div>
+    );
+ 
+};
+
+export default Notification;

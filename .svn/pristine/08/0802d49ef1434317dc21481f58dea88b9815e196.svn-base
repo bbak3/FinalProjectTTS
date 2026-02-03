@@ -1,0 +1,55 @@
+import api from "./axios";
+
+/**
+ * 관리자 계정 관리 API
+ * - "/admin/" 시작, api는 이미 axios에서 설정했음 (여기서 사용시 중복됨!!!)
+ * - 역할 : 목록, 생성, 수정, 삭제(퇴사), 검색
+*/
+
+const EMPLOYEE = "/admin/employees";
+
+/**
+ * 1. 전체 등록된 직원 조회 (메인 화면) + filter
+ * - filter : position (직책), sort (정렬), keyword (검색어)
+ */
+export const getEmployee = (params = {}) => {
+  return api.get(EMPLOYEE, { params });
+};
+
+
+// 계정 생성
+// 헤더 지운 이유 : axios가 formdata 보고 알아서 처리해줌
+export const createEmployee = (formData) => {
+    return api.post(EMPLOYEE, formData);
+};
+
+//  계정 수정
+export const updateEmployee = (employeeNo, data) => {
+    return api.put(`${EMPLOYEE}/${employeeNo}`, data);
+};
+
+// 계정 삭제 (퇴사 처리)
+export const retireEmployee = (employeeNo) => {
+    return api.put(`${EMPLOYEE}/${employeeNo}/retire`);
+};
+
+
+// 엑셀 일괄 등록
+// 헤더 지운 이유 : axios가 formdata 보고 알아서 처리해줌
+export const uploadBulkExcel = (file) => {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  return api.post(`${EMPLOYEE}/bulk`, formData);
+};
+
+/**
+ * 엑셀 다운로드
+ * - 파일 데이터(Binary)를 받으니까 'blob' 타입 설정 (설정 안 하면 엑셀 파일 깨짐)
+ */
+export const downloadExcel = (params) => {
+  return api.get(`${EMPLOYEE}/excel`, {
+    params,
+    responseType: "blob", 
+  });
+};

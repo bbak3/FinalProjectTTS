@@ -1,0 +1,52 @@
+import React from 'react';
+
+/* 알림 개별 항목 */
+const NotificationItem = ({alarm, onReadOne}) => {
+    // 아이콘 및 구분코드 매핑
+    const alarmIconMap = {
+        '001': 'icon-clipboard',       // 접수
+        '002': 'icon-doctor',          // 치료
+        '003': 'icon-doctor-bag',      // 검사
+        '004': 'icon-drug',            // 약(주사)
+        '005': 'icon-users',           // 협진
+        '006': 'icon-package'          // 물품
+    };
+
+    // 매핑된 아이콘이 없으면 기본 '종' 아이콘 사용
+    const iconClass = alarmIconMap[alarm.alertType] || 'icon-bell';
+
+    // 긴급 여부
+    const urgentClass = alarm.alertUrgent === 'Y' ? 'text-danger font-bold' : '';
+
+    return (
+        <div 
+            className={`dropdown-notification ${alarm.alertReadYn === 'N' ? 'dropdown-notification-unread' : ''}`}
+            onClick={() => {
+                // URL이 유효하고 '#'이 아닐 때만 이동
+                if(alarm.alertUrl && alarm.alertUrl !== '#'){
+                    window.location.href = alarm.alertUrl;
+                }
+            }}
+            style={{ cursor: 'pointer' }}
+            >
+            <div className="dropdown-notification-icon">
+                <i className={`icon icon-lg ${iconClass} ${urgentClass}`}></i>
+            </div>
+            <div className="dropdown-notification-content">
+                <div className={`dropdown-notification-title ${urgentClass}`}>{alarm.alertName}</div>
+                <div className={`dropdown-notification-text ${urgentClass}`}>{alarm.alertContent}</div>
+                <div className="dropdown-notification-time">{alarm.alertDate}</div>
+            </div>
+            {/* 클릭 이벤트 전파 방지 (stopPropagation) */}
+            <button 
+                type="button" 
+                className="btn btn-sm btn-secondary ml-2"
+                onClick={(e) => { e.stopPropagation(); onReadOne(alarm.alertNo); }}
+            >
+                확인
+            </button>
+        </div>
+    );
+};
+
+export default NotificationItem;

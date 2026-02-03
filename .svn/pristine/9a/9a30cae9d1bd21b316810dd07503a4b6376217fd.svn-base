@@ -1,0 +1,23 @@
+import React from 'react';
+
+/* 헤더 종 아이콘  */
+const NotificationBell = ({count, onClick}) => {
+    return(
+        <button 
+            className="header-icon-btn relative p-2 rounded-full hover:bg-gray-100" 
+            onClick={onClick}
+            aria-label="알림"
+            >
+            <i className="icon icon-bell icon-lg text-gray-600"></i>
+            
+            {/* 알림 숫자가 0보다 클 때만 Dot 표시 */}
+            {count > 0 && (
+                <span className="absolute top-0 right-0 block h-4 w-4 rounded-full bg-red-500 text-white text-[10px] flex items-center justify-center border-2 border-white">
+                {count > 99 ? '99+' : count}
+                </span>
+            )}
+        </button>
+    );
+};
+
+export default NotificationBell;

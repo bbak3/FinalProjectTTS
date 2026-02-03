@@ -1,0 +1,129 @@
+import React, { useState, useEffect, useMemo } from 'react';
+
+const WatingList = () => {
+    const [patients, setPatients] = useState([]);
+
+    const getStatusLabel = (code) => {
+        const statusMap = {
+            '001': '대기',
+            '002': '진료대기',
+            '003': '진료중',
+            '004': '수납대기',
+            '005': '수납완료',
+        }
+        return statusMap[code] || '대기';
+    };
+
+    const [currentTime, setCurrentTime] = useState(new Date());
+
+    useEffect(() => {
+        const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+        return () => clearInterval(timer);
+    }, []);
+
+    // 3. 다단 레이아웃 분할 (한 열에 8명씩, 최대 32명)
+    const columns = useMemo(() => {
+        const chunks = [];
+        for (let i = 0; i < 32; i += 8) {
+            chunks.push(patients.slice(i, i + 8));
+        }
+        return chunks;
+    }, [patients]);
+
+    return (
+        <div className="min-h-screen p-8 bg-slate-50" style={{ fontFamily: 'Pretendard, sans-serif' }}>
+            
+            {/* 상단 헤더: 사용자 정의 디자인 이식 */}
+            <header className="flex items-center justify-between p-6 mb-8 bg-white shadow-lg rounded-3xl border-l-[12px] border-blue-600">
+                <div>
+                    <h1 className="text-3xl font-black text-slate-800 tracking-tight">
+                        제 2 진료실 <span className="text-blue-600 ml-2">대기 현황</span>
+                    </h1>
+                    <p className="text-slate-400 mt-1 font-medium">실시간 진료 대기 명단입니다.</p>
+                </div>
+                <div className="text-right">
+                    <div className="text-lg text-slate-500 font-semibold">
+                        {currentTime.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' })}
+                    </div>
+                    <div className="text-5xl font-black text-blue-600 tracking-tighter">
+                        {currentTime.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}
+                    </div>
+                </div>
+            </header>
+
+            {/* 메인 4단 그리드 리스트 */}
+            <div className="grid grid-cols-4 gap-6" style={{ height: 'calc(100vh - 22rem)' }}>
+                {columns.map((col, colIdx) => (
+                    <div key={colIdx} className="bg-white rounded-[2rem] shadow-md border border-slate-100 overflow-hidden flex flex-col">
+                        <table className="w-full border-collapse">
+                            <thead className="bg-slate-50 border-b border-slate-100">
+                                <tr>
+                                    <th className="py-4 px-2 text-slate-400 text-sm font-bold w-16 text-center">순번</th>
+                                    <th className="py-4 text-left text-slate-500 text-sm font-bold">환자명</th>
+                                    <th className="py-4 px-2 text-slate-400 text-sm font-bold w-24 text-center">상태</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {col.map((p, pIdx) => {
+                                    const isCalling = p.status === '진료중';
+                                    return (
+                                        <tr key={p.id} className={`border-b border-slate-50 transition-colors ${isCalling ? 'bg-blue-50/50' : ''}`} style={{ height: '4.8rem' }}>
+                                            <td className="text-center">
+                                                <span className={`text-lg font-bold ${isCalling ? 'text-blue-600' : 'text-slate-300'}`}>
+                                                    {(colIdx * 8 + pIdx + 1).toString().padStart(2, '0')}
+                                                </span>
+                                            </td>
+                                            <td className="relative">
+                                                <div className="flex items-center gap-2">
+                                                    <span className={`text-xl font-black ${isCalling ? 'text-slate-900' : 'text-slate-600'}`}>
+                                                        {p.name}
+                                                    </span>
+                                                    {p.isReserved && (
+                                                        <span className="bg-blue-100 text-blue-600 text-[10px] px-2 py-0.5 rounded-full font-bold border border-blue-200">예약</span>
+                                                    )}
+                                                </div>
+                                            </td>
+                                            <td className="text-center">
+                                                <div className="flex flex-col items-center justify-center gap-1">
+                                                    {isCalling && <div className="status-dot-small animate-pulse"></div>} {/* 사용자 정의 활성화 도트 */}
+                                                    <span className={`text-xs font-bold px-3 py-1 rounded-lg ${isCalling ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-400'}`}>
+                                                        {p.status}
+                                                    </span>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                                {/* 빈 슬롯 채우기 (레이아웃 유지) */}
+                                {Array.from({ length: 8 - col.length }).map((_, i) => (
+                                    <tr key={`empty-${i}`} className="border-b border-slate-50 opacity-20" style={{ height: '4.8rem' }}>
+                                        <td className="text-center text-slate-200 font-bold">{(colIdx * 8 + col.length + i + 1).toString().padStart(2, '0')}</td>
+                                        <td></td>
+                                        <td></td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                ))}
+            </div>
+
+            {/* 하단 공지사항 바: Callout 스타일 */}
+            <footer className="mt-10">
+                <div className="flex items-center gap-4 p-5 bg-slate-900 rounded-[1.5rem] shadow-xl overflow-hidden border-b-4 border-blue-500">
+                    <div className="flex items-center gap-2 bg-blue-600 px-4 py-2 rounded-xl text-white font-black text-sm shrink-0">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        안내사항
+                    </div>
+                    <div className="flex-1 text-white font-medium text-lg italic tracking-wide overflow-hidden">
+                        <marquee scrollamount="6">
+                            성함이 호출된 환자분께서는 진료실로 입장해 주시기 바랍니다. • 예약 환자분들은 도착 시 데스크에 반드시 말씀해 주세요. • 진료 상황에 따라 대기 시간이 다소 길어질 수 있습니다.
+                        </marquee>
+                    </div>
+                </div>
+            </footer>
+        </div>
+    );
+};
+
+export default WatingList;

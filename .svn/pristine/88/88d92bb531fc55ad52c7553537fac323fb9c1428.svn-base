@@ -1,0 +1,14 @@
+import api from "./axios";
+
+/**
+ * 관리자 통계 API
+ * - 월별 외래n입원 업무량(CNT) + 수납금액(AMOUNT)
+ * - 
+*/
+
+const STATS = "/admin/stats";
+
+export const getMonthlyStats=(params = {}) => {
+    console.log("[API.getMonthlyStats params]", params);
+    return api.get(`${STATS}/monthly`, {params});
+}

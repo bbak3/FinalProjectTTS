@@ -1,0 +1,188 @@
+import React, { useEffect, useState } from 'react';
+import { getYearsStats } from '../../../api/statsApi';
+import { 
+  Chart as ChartJS, CategoryScale, LinearScale, BarElement, ArcElement, Title, Tooltip, Legend 
+} from 'chart.js';
+import { Bar, Doughnut } from 'react-chartjs-2';
+
+ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, Title, Tooltip, Legend);
+
+const YearsStatsChart = ({ statsType, year }) => {
+  const [revenueData, setRevenueData] = useState([]);
+  const [patientData, setPatientData] = useState({
+    outCnt: 0, inCnt: 0, total: 0,
+    monthlyOut: [], monthlyIn: []
+  });
+
+  useEffect(() => { fetchStats(); }, [year]);
+
+  const fetchStats = async () => {
+    try {
+      const res = await getYearsStats({ year });
+      processData(res.data);
+    } catch (error) { console.error(error); }
+  };
+
+  const processData = (data) => {
+    const months = Array.from({ length: 12 }, (_, i) => `${i + 1}월`);
+    const revArr = months.map((m) => ({ displayMonth: m, revenue: 0, expense: 0, profit: 0 }));
+    let outTotal = 0, inTotal = 0;
+    const outMonthly = new Array(12).fill(0);
+    const inMonthly = new Array(12).fill(0);
+
+    if (data && Array.isArray(data)) {
+      data.forEach(item => {
+        const monthIdx = parseInt(item.yearMonth.split('-')[1]) - 1;
+        revArr[monthIdx].revenue += item.amount;
+        if (item.typeCode === 'A0001') { outTotal += item.cnt; outMonthly[monthIdx] = item.cnt; } 
+        else if (item.typeCode === 'A0002') { inTotal += item.cnt; inMonthly[monthIdx] = item.cnt; }
+      });
+    }
+    revArr.forEach(item => {
+      item.expense = Math.floor(item.revenue * 0.6);
+      item.profit = item.revenue - item.expense;
+    });
+    setRevenueData(revArr);
+    setPatientData({
+      outCnt: outTotal, inCnt: inTotal, total: outTotal + inTotal,
+      monthlyOut: outMonthly, monthlyIn: inMonthly
+    });
+  };
+
+  const commonOptions = {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { grid: { display: false }, ticks: { font: { size: 11, weight: 'bold' } } },
+      y: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { display: false } }
+    }
+  };
+
+  return (
+    <div className="h-full flex flex-col gap-4">
+      
+      {/* 1. 매출 탭 */}
+      {statsType === 'revenue' && (
+        <>
+          {/* 상단 차트 (45%) */}
+          <div className="h-[45%] border border-slate-200 rounded-xl p-5 bg-white shadow-sm shrink-0 flex flex-col">
+              <div className="flex justify-between items-center mb-3 shrink-0">
+                <h3 className="text-sm font-bold text-slate-700">월별 손익 추이</h3>
+                <div className="flex gap-3">
+                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500"><span className="w-2.5 h-2.5 rounded-full bg-blue-500"></span> 매출</div>
+                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500"><span className="w-2.5 h-2.5 rounded-full bg-red-400"></span> 지출</div>
+                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500"><span className="w-2.5 h-2.5 rounded-full bg-emerald-400"></span> 이익</div>
+                </div>
+              </div>
+              <div className="flex-1 w-full min-h-0">
+                <Bar options={commonOptions} data={{
+                    labels: revenueData.map(d => d.displayMonth),
+                    datasets: [
+                      { label: '매출', data: revenueData.map(d => d.revenue), backgroundColor: '#3b82f6', borderRadius: 4, barPercentage: 0.6 },
+                      { label: '지출', data: revenueData.map(d => d.expense), backgroundColor: '#fb7185', borderRadius: 4, barPercentage: 0.6 },
+                      { label: '이익', data: revenueData.map(d => d.profit), backgroundColor: '#34d399', borderRadius: 4, barPercentage: 0.6 }
+                    ]
+                  }} />
+              </div>
+          </div>
+
+          {/* 하단 테이블 */}
+          <div className="flex-1 rounded-xl border border-slate-200 overflow-hidden shadow-sm bg-white flex flex-col min-h-0">
+              <div className="px-5 py-3 border-b border-slate-100 bg-white flex justify-between items-center shrink-0">
+                  <h3 className="text-sm font-bold text-slate-700">상세 내역표</h3>
+                  <span className="text-[10px] font-bold text-slate-400">단위: KRW</span>
+              </div>
+              
+              <div className="bg-slate-50 border-b border-slate-100 shrink-0">
+                  <table className="w-full text-left">
+                      <thead className="text-slate-500 font-bold uppercase text-xs">
+                          <tr>
+                              <th className="px-5 py-3 w-1/4">월</th>
+                              <th className="px-5 py-3 w-1/4 text-right">매출</th>
+                              <th className="px-5 py-3 w-1/4 text-right">지출(추정)</th>
+                              <th className="px-5 py-3 w-1/4 text-right">영업 이익</th>
+                          </tr>
+                      </thead>
+                  </table>
+              </div>
+
+              <div className="flex-1 overflow-y-auto">
+                  <table className="w-full text-left text-xs">
+                      <tbody className="divide-y divide-slate-50">
+                          {revenueData.map((row, idx) => (
+                              <tr key={idx} className="hover:bg-blue-50/10 transition-colors">
+                                  <td className="px-5 py-3 font-bold text-slate-700 w-1/4">{row.displayMonth}</td>
+                                  <td className="px-5 py-3 text-right font-bold text-blue-600 w-1/4">{row.revenue.toLocaleString()}</td>
+                                  <td className="px-5 py-3 text-right text-red-400 w-1/4">{row.expense.toLocaleString()}</td>
+                                  <td className="px-5 py-3 text-right font-black text-emerald-500 w-1/4">{row.profit.toLocaleString()}</td>
+                              </tr>
+                          ))}
+                      </tbody>
+                  </table>
+              </div>
+          </div>
+        </>
+      )}
+
+      {/* 환자 탭 */}
+      {statsType === 'patient' && (
+        <>
+          {/* 상단 카드 (적당한 크기) */}
+          <div className="grid grid-cols-3 gap-4 shrink-0">
+              <div className="p-5 border border-slate-200 rounded-xl bg-white shadow-sm">
+                  <p className="text-[10px] text-slate-400 font-bold mb-1 uppercase">Total</p>
+                  <div className="text-3xl font-black text-slate-800">{patientData.total}<span className="text-xs ml-1 font-bold text-slate-400">명</span></div>
+              </div>
+              <div className="p-5 border border-blue-100 rounded-xl bg-blue-50/30 shadow-sm">
+                  <p className="text-[10px] text-blue-500 font-bold mb-1 uppercase">Outpatients</p>
+                  <div className="text-3xl font-black text-blue-600">{patientData.outCnt}<span className="text-xs ml-1 font-bold text-blue-400">명</span></div>
+              </div>
+              <div className="p-5 border border-indigo-100 rounded-xl bg-indigo-50/30 shadow-sm">
+                  <p className="text-[10px] text-indigo-500 font-bold mb-1 uppercase">Inpatients</p>
+                  <div className="text-3xl font-black text-indigo-600">{patientData.inCnt}<span className="text-xs ml-1 font-bold text-indigo-400">명</span></div>
+              </div>
+          </div>
+
+          {/* 하단 차트 */}
+          <div className="flex-1 grid grid-cols-2 gap-4 min-h-0">
+              <div className="border border-slate-200 rounded-xl p-5 bg-white shadow-sm flex flex-col">
+                  <h3 className="text-sm font-bold text-slate-700 mb-4 shrink-0">환자 비율</h3>
+                  <div className="flex-1 flex justify-center items-center min-h-0">
+                      <Doughnut 
+                        data={{
+                          labels: ['외래', '입원'],
+                          datasets: [{
+                            data: [patientData.outCnt, patientData.inCnt],
+                            backgroundColor: ['#3b82f6', '#6366f1'],
+                            borderWidth: 0,
+                            hoverOffset: 4
+                          }]
+                        }} 
+                        options={{ cutout: '70%', maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { usePointStyle: true, font: { size: 11 } } } } }} 
+                      />
+                  </div>
+              </div>
+              
+              <div className="border border-slate-200 rounded-xl p-5 bg-white shadow-sm flex flex-col">
+                    <h3 className="text-sm font-bold text-slate-700 mb-4 shrink-0">월별 추이</h3>
+                    <div className="flex-1 min-h-0">
+                      <Bar 
+                        options={commonOptions} 
+                        data={{
+                          labels: revenueData.map(d => d.displayMonth),
+                          datasets: [
+                              { label: '외래', data: patientData.monthlyOut, backgroundColor: '#3b82f6', borderRadius: 4 },
+                              { label: '입원', data: patientData.monthlyIn, backgroundColor: '#cbd5e1', borderRadius: 4 }
+                          ]
+                        }}
+                      />
+                    </div>
+              </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
+
+export default YearsStatsChart;

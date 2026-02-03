@@ -1,0 +1,453 @@
+import React, { useEffect, useRef, useState } from 'react'
+import * as API from '../../api/accountApi';
+import AccountCreateModal from './components/AccountCreateModal';
+
+function AccountManager() {
+
+  // 조회 목록 상태
+  const [employees, setEmployees] = useState([]);
+  const [paging, setPaging] = useState({
+    page: 1,
+    size: 10,
+    totalElements: 0,
+    totalPages: 0
+  });
+
+  const [isLoading, setIsLoading] = useState(false);
+
+  // 검색 필터
+  const [filters, setFilters] = useState({
+    position: "",
+    sort: "date_asc",
+    keyword: "",
+  });
+
+  // 마지막 요청만 반영해줌
+  const lastReqIdRef = useRef(0);
+
+  // 모달 상태 - 열기, 닫기
+  const [modals, setModals] = useState({
+    create: false,
+    //edit: false,
+    bulk: false
+  });
+
+  // 엑셀 파일 상태
+  const [excelFile, setExcelFile] = useState(null);
+
+  // 직원 구분 코드
+  const POSITION_MAP = {
+    "0": "관리자",
+    "1": "의사",
+    "2": "외래간호사",
+    "3": "입원간호사",
+    "4": "약사",
+    "5": "방사선사",
+    "6": "물리치료사",
+    "7": "원무과"
+  };
+
+  // 초기화 훅
+  useEffect(() => {
+    loadEmployees();
+  }, [filters.position, filters.sort, paging.page]);
+
+  // 목록 로딩
+  const loadEmployees = async () => {
+    const reqId = ++lastReqIdRef.current;
+    setIsLoading(true);
+
+    try {
+      const params = {
+        position: filters.position,
+        sort: filters.sort,
+        keyword: filters.keyword,
+        page: paging.page,
+        size: paging.size,
+      };
+
+      const res = await API.getEmployee(params);
+
+      // 페이징 했으니까 배열이 아닌 객체 리턴!!
+      if (reqId === lastReqIdRef.current) {
+        setEmployees(res.data.content);
+        setPaging(prev => ({
+          ...prev,
+          totalPages: res.data.totalPages,
+          totalElements: res.data.totalElements
+        }));
+      }
+    } catch (error) {
+      console.error("로딩 실패ㅠ", error);
+    } finally {
+      // 로딩 끝
+      if (reqId === lastReqIdRef.current) setIsLoading(false);
+    }
+  };
+
+  // 페이지 변경 핸들러 함수
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && newPage <= paging.totalPages) {
+      setPaging(prev => ({ ...prev, page: newPage }));
+    }
+  };
+
+  // 검색 버튼 클릭 시
+  const handleSearch = () => {
+    loadEmployees();
+  };
+
+  // 모달 토글
+  const toggleModal = (type, isOpen) => {
+    setModals(prev => ({ ...prev, [type]: isOpen }));
+    // 모달 닫을때 상태 초기화
+    if (type === 'bulk' && !isOpen) {
+      setExcelFile(null);
+    }
+  };
+
+  // 엑셀 파일 선택
+  const handleExcelChange = (e) => {
+    const file = e.target.files[0];
+    if (file) setExcelFile(file);
+  };
+
+  // 엑셀 일괄 등록
+  const handleBulkUpload = async () => {
+    if (!excelFile) return alert("엑셀 파일을 선택해주세요.");
+
+    try {
+      const formData = new FormData();
+      formData.append("file", excelFile);
+      // 화면에서 파일만 넘김
+      await API.uploadBulkExcel(excelFile);
+      alert("일괄 등록이 완료되었습니다.");
+      toggleModal('bulk', false);
+      loadEmployees();
+    } catch (err) {
+      alert("일괄 등록 실패");
+    }
+  };
+
+  // 엑셀 다운로드
+  const handleExcelDownload = async () => {
+    try {
+      const res = await API.downloadExcel(filters);
+      // Blob을 파일로 저장하는 트릭
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', '직원목록.xlsx');
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (err) {
+      alert("다운로드 실패");
+    }
+  };
+
+  // ===== 계정 생성 성공 후 처리
+  const handleCreateSuccess = () => {
+    loadEmployees();
+  };
+
+  return (
+    <>
+      <style>{`.custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
+               .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #e2e8f0; border-radius: 10px; }
+                      input:focus, select:focus, textarea:focus { border-color: #3b82f6 !important; box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1); }
+                      .modal-overlay { background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(4px); }
+                      .custom-checkbox { width: 16px; height: 16px; accent-color: #3b82f6; cursor: pointer; }
+                      .no-data { color: #ef4444 !important; font-weight: 800 !important; }
+                  `}</style>
+
+      <section className="flex flex-col h-full rounded-2xl bg-white shadow-sm ring-1 ring-black/5 overflow-hidden text-zinc-950">
+              {/* 1. 검색 및 필터 영역 (상단 고정) */}
+              <div className="p-5 border-b border-slate-100 bg-white shrink-0 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-900">
+                    직원 리스트 조회
+                  </h2>
+                  <p className="text-xs text-slate-400 mt-0.5 font-medium uppercase">
+                    Staff Directory
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2 items-center">
+                  {/* 직책 필터 */}
+                  <div className="flex items-center bg-slate-50 rounded-xl px-3 border border-slate-200 shadow-sm">
+                    <span className="text-[10px] font-black text-blue-500 mr-1">
+                      직책
+                    </span>
+                    <select
+                      className="bg-transparent py-2 text-xs font-bold text-slate-700 outline-none cursor-pointer"
+                      value={filters.position}
+                      onChange={(e) =>
+                        setFilters({ ...filters, position: e.target.value })
+                      }
+                    >
+                      <option value="">전체</option>
+                      <option value="1">의사</option>
+                      <option value="2">외래간호사</option>
+                      <option value="3">입원간호사</option>
+                      <option value="4">약사</option>
+                      <option value="5">방사선사</option>
+                      <option value="6">물리치료사</option>
+                      <option value="7">원무과</option>
+                      <option value="0">관리자</option>
+                    </select>
+                  </div>
+                  {/* 정렬 필터 */}
+                  <div className="flex items-center bg-slate-50 rounded-xl px-3 border border-slate-200 shadow-sm">
+                    <span className="text-[10px] font-black text-slate-400 mr-1">
+                      정렬
+                    </span>
+                    <select
+                      className="bg-transparent py-2 text-xs font-bold text-slate-700 outline-none cursor-pointer"
+                      value={filters.sort}
+                      onChange={(e) =>
+                        setFilters({ ...filters, sort: e.target.value })
+                      }
+                    >
+                      <option value="active">재직자</option>
+                      <option value="retired">퇴사자</option>
+                      <option value="date_desc">입사일 최신순</option>
+                      <option value="date_asc">입사일 과거순</option>
+                    </select>
+                  </div>
+
+                  {/* 검색창 */}
+                  <div className="flex gap-1 ml-1 items-center">
+                    <input
+                      type="text"
+                      placeholder="이름 검색"
+                      className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:bg-white w-32 transition-all shadow-sm"
+                      value={filters.keyword}
+                      onChange={(e) =>
+                        setFilters({ ...filters, keyword: e.target.value })
+                      }
+                      onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                    />
+                    <button
+                      onClick={handleSearch}
+                      className="px-3 py-2 bg-slate-800 text-white rounded-xl text-xs font-bold hover:bg-black transition-colors"
+                    >
+                      검색
+                    </button>
+                    <div className="h-6 w-[1px] bg-slate-200 mx-1"></div>
+                    <button
+                      onClick={handleExcelDownload}
+                      className="px-3 py-2 bg-white border border-slate-200 text-slate-600 rounded-xl text-xs font-bold hover:bg-slate-50 transition-all shadow-sm"
+                    >
+                      일괄 다운로드
+                    </button>
+                    <button
+                      onClick={() => toggleModal("bulk", true)}
+                      className="px-3 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:bg-emerald-700 transition-all shadow-md shadow-emerald-100"
+                    >
+                      일괄 생성
+                    </button>
+                    <button
+                      onClick={() => toggleModal("create", true)}
+                      className="px-3 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700 transition-all shadow-md shadow-blue-100"
+                    >
+                      + 계정 생성
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* 테이블 영역 */}
+              <div className="flex-1 overflow-auto custom-scrollbar bg-slate-50/30 text-zinc-950 relative">
+                <table className="w-full text-left border-collapse table-fixed">
+                  {/* 헤더 영역 */}
+                  <thead className="sticky top-0 bg-white border-b border-slate-100 z-10 shadow-sm text-slate-400 font-bold text-[11px] uppercase tracking-wider">
+                    <tr>
+                      <th className="px-4 py-4 w-[20%] text-center">사번</th>
+                      <th className="px-4 py-4 w-[20%] text-center">이름 / 직책 </th>
+                      <th className="px-4 py-4 w-[20%] text-center">연락처</th>
+                      <th className="px-4 py-4 w-[20%] text-center">입사일</th>
+                      <th className="px-4 py-4 w-[20%] text-center">관리</th>
+                    </tr>
+                  </thead>
+
+                  {/* 본문 영역 */}
+                  <tbody className="divide-y divide-slate-100 bg-white">
+                    {employees.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan="5"
+                          className="text-center py-20 text-slate-400 font-bold h-[500px]"
+                        >
+                          데이터가 없습니다.
+                        </td>
+                      </tr>
+                    ) : (
+                      employees.map((emp) => (
+                        <tr
+                          key={emp.employeeNo}
+                          className="hover:bg-blue-50/30 transition-colors"
+                        >
+                          {/* 사번 */}
+                          <td className="px-4 py-4 text-xs font-bold text-slate-400 text-center">
+                            {emp.employeeNo}
+                          </td>
+
+                          {/* 이름/직책 */}
+                          <td className="px-6 py-4">
+                            <div className="flex items-center justify-center gap-3">
+                              {emp.fileNo ? (
+                                <img
+                                  src={`/employee/profile/${emp.fileNo}`}
+                                  className="w-8 h-8 rounded-lg object-cover"
+                                  alt="user"
+                                  onError={(e) => {
+                                    e.target.style.display = 'none';
+                                    e.target.nextSibling.style.display = 'flex';
+                                  }}
+                                />
+                              ) : (
+                                <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center text-xs font-bold shrink-0">
+                                  {(emp.employeeName || "?").charAt(0)}
+                                </div>
+                              )}
+                              <div className="text-left">
+                                {" "}
+                                <div className="text-sm font-bold text-zinc-950">
+                                  {emp.employeeName}
+                                </div>
+                                <div className="text-[10px] font-bold text-blue-600">
+                                  {POSITION_MAP[emp.employeeCode] ||
+                                    "정보 없음"}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* 3. 연락처 */}
+                          <td className="px-4 py-4 text-xs font-bold text-slate-600 text-center">
+                            {emp.employeeTel}
+                          </td>
+
+                          {/* 4. 입사일 */}
+                          <td className="px-4 py-4 text-xs font-bold text-slate-600 text-center">
+                            {emp.employeeRegdate
+                              ? emp.employeeRegdate.substring(0, 10)
+                              : "-"}
+                          </td>
+
+                          {/* 5. 관리 */}
+                          <td className="px-4 py-4">
+                            <div className="flex justify-center gap-2 text-zinc-950">
+                              <button className="px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-[11px] font-bold text-slate-600 hover:bg-slate-800 hover:text-white transition-all">
+                                수정
+                              </button>
+                              <button className="px-3 py-1.5 rounded-lg border border-red-100 text-[11px] font-bold text-red-500 hover:bg-red-50 transition-all">
+                                퇴사
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              {/* 페이지네이션 영역 */}
+              <div className="p-4 border-t border-slate-100 bg-white flex items-center justify-between shrink-0 z-20 relative">
+                <span className="text-xs text-slate-500 font-bold">
+                  총{" "}
+                  <span className="text-blue-600">{paging.totalElements}</span>
+                  명
+                </span>
+
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => handlePageChange(paging.page - 1)}
+                    disabled={paging.page === 1}
+                    className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    &lt;
+                  </button>
+
+                  {Array.from({ length: paging.totalPages }, (_, i) => i + 1)
+                    .filter((num) => Math.abs(paging.page - num) < 3)
+                    .map((num) => (
+                      <button
+                        key={num}
+                        onClick={() => handlePageChange(num)}
+                        disabled={isLoading} // 로딩 중엔 클릭 못하게 막기
+                        className={`w-8 h-8 flex items-center justify-center rounded-lg text-xs font-bold transition-all ${
+                          paging.page === num
+                            ? "bg-blue-600 text-white shadow-md shadow-blue-200"
+                            : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+                        }${isLoading ? "cursor-wait" : ""}`}
+                      >
+                        {num}
+                      </button>
+                    ))}
+                    <button
+                    onClick={() => handlePageChange(paging.page + 1)}
+                    disabled={paging.page === paging.totalPages}
+                    className="w-8 h-8 flex items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    &gt;
+                  </button>
+                </div>
+              </div>
+            </section>
+
+          {/* 1) 계정 생성 모달: 별도 컴포넌트로 분리 */}
+          <AccountCreateModal
+            isOpen={modals.create}
+            onClose={() => toggleModal('create', false)}
+            onSuccess={handleCreateSuccess}
+          />
+
+          {/* 2) 엑셀 업로드 모달: (요청은 3단 분리지만, 기존 그대로 유지) */}
+          <div className={`fixed inset-0 modal-overlay z-50 flex items-center justify-center ${modals.bulk ? '' : 'hidden'}`}>
+            <div className="bg-white w-[1000px] max-h-[90vh] rounded-[2rem] shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in duration-200">
+              <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-white shrink-0">
+                <h3 className="text-lg font-bold text-slate-900">엑셀 일괄 등록</h3>
+                <button
+                  onClick={() => toggleModal('bulk', false)}
+                  className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="flex-1 py-8 px-12">
+            <div className="border-2 border-dashed border-slate-200 rounded-2xl p-10 flex flex-col items-center justify-center bg-slate-50 mb-6 relative hover:border-emerald-400 transition-colors">
+              <input
+                type="file"
+                accept=".xlsx, .xls"
+                className="absolute inset-0 opacity-0 cursor-pointer"
+                onChange={handleExcelChange}
+              />
+              <span className="text-4xl mb-4">📄</span>
+              <p className="text-sm font-bold text-slate-600">
+                {excelFile ? excelFile.name : '엑셀 파일을 드래그하거나 클릭하세요'}
+              </p>
+            </div>
+          </div>
+
+          <div className="p-6 bg-slate-50 border-t border-slate-100 flex gap-3">
+            <button
+              onClick={() => toggleModal('bulk', false)}
+              className="flex-1 py-4 rounded-2xl bg-white border border-slate-200 text-sm font-bold text-slate-500"
+            >
+              취소
+            </button>
+            <button
+              onClick={handleBulkUpload}
+              className="flex-[2] py-4 rounded-2xl bg-emerald-600 text-white text-sm font-black shadow-lg shadow-emerald-100 hover:bg-emerald-700"
+            >
+              일괄 등록 확정
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
+  )
+}
+
+export default AccountManager

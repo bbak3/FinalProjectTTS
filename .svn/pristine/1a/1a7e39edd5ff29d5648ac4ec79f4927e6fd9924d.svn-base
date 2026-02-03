@@ -1,0 +1,13 @@
+import { useState } from 'react'
+import Dashboard from './pages/Dashboard' // 방금 만든 파일 가져오기
+
+function App() {
+  return (
+    <div className="App">
+      <Dashboard />
+      <Dashboard />
+    </div>
+  )
+}
+
+export default App

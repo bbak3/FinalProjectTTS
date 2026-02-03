@@ -1,0 +1,352 @@
+import React, { useState, useEffect } from 'react';
+import { X, Trash2, Edit2, Calendar, Clock, User, AlignLeft, CheckCircle } from 'lucide-react';
+
+const EventModal = ({ 
+  isOpen, 
+  onClose, 
+  onSave, 
+  onDelete, 
+  initialDate, 
+  eventData, 
+  currentViewType, 
+  currentDoctorId, 
+  doctorList = [] 
+}) => {
+  const [mode, setMode] = useState('edit');
+  
+  // 폼 데이터 초기값
+  const [formData, setFormData] = useState({
+    id: '',
+    type: '병원행사',
+    employeeNo: 0,
+    title: '',
+    start: '',
+    end: '',
+    description: '',
+    allDay: false
+  });
+
+  // --- [Helper] 날짜 포맷팅 함수들 ---
+
+  // 1. input value용 (수정 모드)
+  const formatInputDateTime = (dateInput, isAllDay) => {
+    if (!dateInput) return '';
+    const date = new Date(dateInput);
+    if (isNaN(date.getTime())) return '';
+    
+    // 한국 시간(KST) 보정
+    const kstDate = new Date(date.getTime() - (date.getTimezoneOffset() * 60000));
+    const isoString = kstDate.toISOString();
+
+    // 하루종일이면 'YYYY-MM-DD', 아니면 'YYYY-MM-DDTHH:mm'
+    if (isAllDay) {
+      return isoString.slice(0, 10);
+    }
+    return isoString.slice(0, 16);
+  };
+
+  // 2. 보여주기용 (상세 보기 모드)
+  const formatKoDateTime = (isoStr, isAllDay) => {
+    if (!isoStr) return '';
+    const date = new Date(isoStr);
+    
+    // 하루종일인 경우
+    if (isAllDay) {
+      return date.toLocaleString('ko-KR', {
+        year: 'numeric', month: 'long', day: 'numeric', weekday: 'short'
+      }) + " (종일)";
+    }
+
+    // 시간 포함
+    return date.toLocaleString('ko-KR', {
+      year: 'numeric', month: 'long', day: 'numeric', 
+      hour: 'numeric', minute: '2-digit', hour12: true
+    });
+  };
+
+  // --- [Effect] 모달 열릴 때 데이터 초기화 ---
+  useEffect(() => {
+    if (isOpen) {
+      if (eventData) {
+        // [수정/상세 모드]
+        setMode('view');
+        const props = eventData.extendedProps || {};
+        
+        setFormData({
+          id: eventData.id,
+          type: props.type || '기타',
+          employeeNo: Number(props.employeeNo),
+          title: eventData.title,
+          allDay: eventData.allDay, 
+          // allDay 여부에 따라 포맷팅 다르게 적용
+          start: formatInputDateTime(eventData.start, eventData.allDay),
+          end: eventData.end 
+                ? formatInputDateTime(eventData.end, eventData.allDay) 
+                : formatInputDateTime(eventData.start, eventData.allDay),
+          description: props.description || ''
+        });
+      } else {
+        // [신규 등록 모드]
+        setMode('edit');
+        const isPersonal = currentViewType === 'PERSONAL';
+        
+        // FullCalendar 빈칸 클릭 시 allDay 정보가 넘어옴
+        const isAllDayInit = initialDate ? initialDate.allDay : false;
+
+        setFormData({
+          id: '',
+          type: isPersonal ? '휴진' : '병원행사',
+          employeeNo: isPersonal ? Number(currentDoctorId) : 26020908,
+          title: '',
+          allDay: isAllDayInit,
+          start: initialDate ? formatInputDateTime(initialDate.startStr, isAllDayInit) : '',
+          end: initialDate ? formatInputDateTime(initialDate.endStr, isAllDayInit) : '',
+          description: ''
+        });
+      }
+    }
+  }, [isOpen, eventData, initialDate, currentViewType, currentDoctorId]);
+
+  // --- [Logic] 입력 값 변경 핸들러 ---
+  const handleChange = (e) => {
+    const { name, value, checked } = e.target;
+    
+    // 1. 하루종일(allDay) 체크박스 토글
+    if (name === 'allDay') {
+      const isChecked = checked;
+      setFormData(prev => {
+        let newStart = prev.start;
+        let newEnd = prev.end;
+
+        if (isChecked) {
+          // 시간 -> 날짜 
+          if (newStart.includes('T')) newStart = newStart.split('T')[0];
+          if (newEnd.includes('T')) newEnd = newEnd.split('T')[0];
+        } else {
+          // 날짜 -> 시간 
+          if (!newStart.includes('T')) newStart = `${newStart}T09:00`;
+          if (!newEnd.includes('T')) newEnd = `${newEnd}T10:00`;
+        }
+        
+        return { ...prev, allDay: isChecked, start: newStart, end: newEnd };
+      });
+    } 
+    // 2. 일정 타입 변경 시 사번 자동 동기화
+    else if (name === 'type') {
+      let nextEmpNo = formData.employeeNo;
+
+      if (['병원행사', '시설점검'].includes(value)) {
+        nextEmpNo = 26020908;
+      } else if (['휴진', '진료일정'].includes(value)) {
+        if (currentDoctorId) {
+          nextEmpNo = Number(currentDoctorId);
+        }
+      }
+      setFormData(prev => ({ ...prev, type: value, employeeNo: nextEmpNo }));
+    } 
+    // 3. 일반 입력
+    else {
+      setFormData(prev => ({ ...prev, [name]: value }));
+    }
+  };
+
+  // Logic 저장 
+  const handleSubmit = () => {
+    if (!formData.title.trim()) return alert('일정 제목을 입력해주세요.');
+    if (!formData.start) return alert('시작 일시를 입력해주세요.');
+
+    onSave({
+      ...formData,
+      employeeNo: Number(formData.employeeNo)
+    });
+    onClose();
+  };
+
+  // --- [Logic] 담당자 이름 표시 ---
+  const getEmpName = (empNo) => {
+    const n = Number(empNo);
+    if (n === 0) return '전체(공통)';
+    const doctor = doctorList.find(doc => doc.employeeNo === n);
+    return doctor ? `${doctor.empName} 의사` : '미지정';
+  };
+
+  if (!isOpen) return null;
+
+  // =========================================================
+  // VIEW MODE: 상세 보기
+  // =========================================================
+  if (mode === 'view') {
+    return (
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+        <div className="bg-white w-full max-w-[400px] rounded-[24px] shadow-2xl p-6 flex flex-col gap-6">
+          
+          {/* Header */}
+          <div className="flex justify-between items-start">
+             <div className="flex items-center gap-2">
+                <span className={`px-2 py-1 rounded text-xs font-bold 
+                  ${formData.employeeNo === 0 ? 'bg-blue-100 text-blue-600' : 'bg-green-100 text-green-600'}`}>
+                  {formData.type}
+                </span>
+                {formData.allDay && (
+                  <span className="px-2 py-1 bg-purple-100 text-purple-600 text-xs font-bold rounded">하루종일</span>
+                )}
+             </div>
+             <div className="flex gap-2 text-slate-400">
+               <button onClick={() => setMode('edit')} className="hover:text-blue-600 transition"><Edit2 size={18}/></button>
+               <button onClick={() => { if(window.confirm('삭제하시겠습니까?')) onDelete(eventData.id); }} className="hover:text-red-600 transition"><Trash2 size={18}/></button>
+               <button onClick={onClose} className="hover:text-slate-600 transition"><X size={20}/></button>
+             </div>
+          </div>
+
+          {/* Body */}
+          <div>
+            <h1 className="text-xl font-bold text-slate-800 leading-snug">{formData.title}</h1>
+            <p className="text-sm text-slate-500 mt-2 flex items-center gap-1">
+              <User size={14}/> {getEmpName(formData.employeeNo)}
+            </p>
+          </div>
+          
+          <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-3">
+             <div className="flex justify-between text-sm">
+               <span className="text-slate-400 font-bold">시작</span> 
+               <span className="text-slate-700 font-bold">{formatKoDateTime(formData.start, formData.allDay)}</span>
+             </div>
+             <div className="flex justify-between text-sm">
+               <span className="text-slate-400 font-bold">종료</span> 
+               <span className="text-slate-700 font-bold">{formatKoDateTime(formData.end, formData.allDay)}</span>
+             </div>
+          </div>
+
+          <div className="text-sm text-slate-600 min-h-[60px] whitespace-pre-wrap">
+            {formData.description || "내용 없음"}
+          </div>
+
+          <button onClick={onClose} className="w-full py-3 bg-white border border-slate-200 rounded-xl font-bold text-slate-600 hover:bg-slate-50 transition">
+            닫기
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // =========================================================
+  // EDIT MODE: 등록 / 수정
+  // =========================================================
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+      <div className="bg-white w-full max-w-[480px] rounded-[24px] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+        
+        {/* Header */}
+        <div className="flex justify-between items-center px-8 py-6 border-b border-slate-50 bg-white sticky top-0 z-10">
+          <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+            {eventData ? '일정 수정' : '새 일정 등록'}
+          </h2>
+          <button onClick={onClose} className="text-slate-300 hover:text-slate-600 transition">
+            <X size={24} />
+          </button>
+        </div>
+
+        {/* Scrollable Body */}
+        <div className="px-8 py-6 space-y-6 overflow-y-auto custom-scrollbar">
+          
+          {/* 1. 구분 & 제목 */}
+          <div className="grid grid-cols-3 gap-4">
+             <div className="col-span-1">
+               <label className="text-xs font-bold text-slate-500 mb-2 block">구분</label>
+               <select name="type" value={formData.type} onChange={handleChange} className="w-full p-3 text-sm border border-slate-200 rounded-xl font-bold text-slate-700 bg-slate-50 outline-none">
+                 <option value="병원행사">병원행사</option>
+                 <option value="시설점검">시설점검</option>
+                 <option value="휴진">휴진</option>
+                 <option value="진료일정">진료일정</option>
+                 <option value="기타">기타</option>
+               </select>
+             </div>
+             <div className="col-span-2">
+               <label className="text-xs font-bold text-slate-500 mb-2 block">제목</label>
+               <input type="text" name="title" value={formData.title} onChange={handleChange} className="w-full p-3 text-sm border border-slate-200 rounded-xl outline-none focus:border-blue-500 font-medium" placeholder="일정 제목"/>
+             </div>
+          </div>
+
+          {/* 2. 담당 의사 표시 */}
+          <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 flex justify-between items-center">
+             <span className="text-xs font-bold text-slate-500">배정 대상</span>
+             <span className={`text-sm font-bold ${formData.employeeNo === 0 ? 'text-blue-600' : 'text-slate-700'}`}>
+               {getEmpName(formData.employeeNo)}
+             </span>
+          </div>
+
+          {/* 3. 일시 설정 (하루종일 버튼 포함) */}
+          <div className="space-y-3">
+             <div className="flex justify-between items-center">
+                <label className="text-xs font-bold text-slate-500">일시 설정</label>
+                
+                {/* 하루종일 체크박스 UI */}
+                <label className="flex items-center gap-2 cursor-pointer group">
+                  <input 
+                    type="checkbox" 
+                    name="allDay" 
+                    checked={formData.allDay} 
+                    onChange={handleChange}
+                    className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 border-gray-300"
+                  />
+                  <span className="text-sm font-bold text-slate-600 group-hover:text-blue-600 transition">하루종일</span>
+                </label>
+             </div>
+
+             <div className="flex gap-4">
+                <div className="flex-1">
+                   <input 
+                     // [핵심] allDay 체크 여부에 따라 input type 변경
+                     type={formData.allDay ? "date" : "datetime-local"}
+                     name="start" 
+                     value={formData.start} 
+                     onChange={handleChange} 
+                     className="w-full p-3 text-sm font-bold text-slate-600 border border-slate-200 rounded-xl focus:border-blue-500 outline-none"
+                   />
+                </div>
+                <div className="flex-1">
+                   <input 
+                     type={formData.allDay ? "date" : "datetime-local"}
+                     name="end" 
+                     value={formData.end} 
+                     onChange={handleChange} 
+                     className="w-full p-3 text-sm font-bold text-slate-600 border border-slate-200 rounded-xl focus:border-blue-500 outline-none"
+                   />
+                </div>
+             </div>
+          </div>
+
+          {/* 4. 메모 */}
+          <div>
+            <label className="text-xs font-bold text-slate-500 mb-2 block">상세 내용</label>
+            <textarea 
+              name="description" 
+              value={formData.description} 
+              onChange={handleChange} 
+              className="w-full h-24 p-3 text-sm border border-slate-200 rounded-xl resize-none outline-none focus:border-blue-500" 
+              placeholder="내용을 입력하세요"
+            />
+          </div>
+        </div>
+
+        {/* 푸터 (수정된 부분) */}
+        <div className="px-8 py-5 border-t border-slate-50 flex gap-3 bg-white">
+          <button 
+            onClick={() => { if(eventData) setMode('view'); else onClose(); }} 
+            className="flex-1 py-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-600 hover:bg-slate-100 transition"
+          >
+            취소
+          </button>
+          <button 
+            onClick={handleSubmit} 
+            className="flex-[2] py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-200 transition"
+          >
+            저장
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default EventModal;

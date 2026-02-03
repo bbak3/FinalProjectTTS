@@ -1,0 +1,85 @@
+import React, { useState } from 'react';
+import MonthlyStatsChart from './components/MonthlyStatsChart';
+
+const StatisticsManager = () => {
+  const [activeTab, setActiveTab] = useState('revenue'); 
+  const [year, setYear] = useState(2026);
+
+  return (
+    // 전체 레이아웃: 화면 꽉 채우고 스크롤 숨김
+    <div className="flex w-full gap-4 h-[calc(100vh-140px)] font-['Pretendard'] text-zinc-950 overflow-hidden">
+      
+      {/* 🟢 [사이드바] 너비 w-64 (표준) */}
+      <aside className="w-64 shrink-0 rounded-xl bg-white border border-slate-200 shadow-sm flex flex-col overflow-hidden">
+        {/* 헤더 */}
+        <div className="p-5 border-b border-slate-100 flex items-center gap-2 bg-slate-50/50">
+          <div className="w-1 h-4 bg-blue-600 rounded-full"></div>
+          <h2 className="text-base font-bold text-slate-800">분석 항목 선택</h2>
+        </div>
+        
+        <div className="flex-1 p-3 space-y-1 overflow-y-auto">
+          {/* 매출 탭 */}
+          <div className="px-3 py-2 text-[11px] font-bold text-slate-400 uppercase tracking-wider mt-2">매출 분석</div>
+          <button 
+            onClick={() => setActiveTab('revenue')}
+            className={`w-full text-left px-4 py-3 rounded-xl transition-all text-sm font-bold flex justify-between items-center
+              ${activeTab === 'revenue' 
+                ? 'bg-blue-50 text-blue-600 shadow-sm ring-1 ring-blue-100' 
+                : 'hover:bg-slate-50 text-slate-600'}`}
+          >
+            병원 매출 현황
+            {activeTab === 'revenue' && <span className="w-1.5 h-1.5 rounded-full bg-blue-600"></span>}
+          </button>
+
+          {/* 환자 탭 */}
+          <div className="px-3 py-2 text-[11px] font-bold text-slate-400 uppercase tracking-wider mt-3">환자 분석</div>
+          <button 
+            onClick={() => setActiveTab('patient')}
+            className={`w-full text-left px-4 py-3 rounded-xl transition-all text-sm font-bold flex justify-between items-center
+              ${activeTab === 'patient' 
+                ? 'bg-blue-50 text-blue-600 shadow-sm ring-1 ring-blue-100' 
+                : 'hover:bg-slate-50 text-slate-600'}`}
+          >
+            외래/입원 환자 현황
+            {activeTab === 'patient' && <span className="w-1.5 h-1.5 rounded-full bg-blue-600"></span>}
+          </button>
+        </div>
+      </aside>
+
+      {/* 🔵 [메인 컨텐츠 레이아웃] */}
+      <section className="flex-1 rounded-xl bg-white border border-slate-200 shadow-sm flex flex-col overflow-hidden">
+        
+        {/* 헤더 */}
+        <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-white sticky top-0 z-10 shrink-0">
+          <div>
+            <h2 className="text-lg font-bold text-slate-900">
+              {activeTab === 'revenue' ? '병원 매출 현황' : '외래 및 입원 환자 현황'}
+            </h2>
+            <p className="text-xs text-slate-500 mt-1 font-medium">
+              {activeTab === 'revenue' 
+                ? `${year}년도 월별 손익 지표 및 상세 내역` 
+                : `${year}년도 환자 유형별 누적 통계`}
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <select 
+              value={year} 
+              onChange={(e) => setYear(Number(e.target.value))}
+              className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-bold outline-none cursor-pointer hover:border-blue-400 transition-colors"
+            >
+              {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}년</option>)}
+            </select>
+          </div>
+        </div>
+
+        {/* 차트 영역 */}
+        <div className="flex-1 overflow-hidden p-5 bg-slate-50/30">
+             <MonthlyStatsChart activeTab={activeTab} year={year} />
+        </div>
+
+      </section>
+    </div>
+  );
+};
+
+export default StatisticsManager;

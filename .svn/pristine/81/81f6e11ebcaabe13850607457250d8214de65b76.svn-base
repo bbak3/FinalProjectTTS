@@ -1,0 +1,129 @@
+import React, { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import Notification from '../../features/notification/Notification';
+
+const Header = () => {
+  const navigate = useNavigate();
+  
+  // 드롭다운 상태 관리
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  
+  // 외부 클릭 감지를 위한 Ref
+  const profileRef = useRef(null);
+
+  // 사용자 이름
+  const userName = "윤관리"; 
+
+  // 외부 클릭 시 드롭다운 닫기
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (profileRef.current && !profileRef.current.contains(event.target)) {
+        setIsProfileOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleLogout = () => {
+    window.location.href = 'http://localhost:8060/login?logout=true';
+  };
+
+  return (
+    <div className="flex items-center justify-between w-full h-full px-6 bg-white border-b border-slate-200 z-50 relative">
+      
+      {/* 좌측: 로고/타이틀 */}
+      <div 
+        className="flex items-center cursor-pointer" 
+        onClick={() => navigate('/')} 
+      >
+        <h1 className="text-xl font-bold text-slate-900 tracking-tight">
+          <span className="text-blue-600">SB</span> 정형외과
+        </h1>
+      </div>
+
+      {/* 우측: 액션 버튼들 */}
+      <div className="flex items-center gap-3">
+        
+        {/* 🏠 홈 버튼 */}
+        <button 
+          className="p-2 text-slate-500 rounded-full hover:bg-slate-100 transition-colors"
+          aria-label="홈"
+          onClick={() => navigate('/')}
+        >
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+            <polyline points="9 22 9 12 15 12 15 22"></polyline>
+          </svg>
+        </button>
+
+        {/* 🔔 알림 */}
+        <Notification/>
+
+        {/* 구분선 */}
+        <div className="w-px h-8 bg-slate-200 mx-1"></div>
+
+        {/* 👤 프로필 영역 (드롭다운 포함) */}
+        <div className="relative" ref={profileRef}>
+          <div 
+            className="flex items-center gap-3 cursor-pointer p-1 rounded-lg hover:bg-slate-50 transition-all"
+            onClick={() => setIsProfileOpen(!isProfileOpen)}
+          >
+            {/* 사용자 정보 텍스트 */}
+            <div className="hidden md:flex flex-col items-end text-sm leading-tight">
+              <span className="text-slate-900">
+                <b>{userName}</b> 님
+              </span>
+              <span className="text-slate-500 text-xs">반갑습니다!</span>
+            </div>
+
+            {/* 프로필 이미지 */}
+            <img 
+              src="https://placehold.co/36x36" 
+              alt="프로필" 
+              className="w-9 h-9 rounded-full border border-slate-200 object-cover shadow-sm" 
+            />
+          </div>
+
+          {/* ▼ 드롭다운 메뉴 */}
+          {isProfileOpen && (
+            <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-slate-100 py-2 animate-in fade-in zoom-in duration-200 z-50">
+              <div className="px-4 py-2 text-xs font-bold text-slate-400 uppercase tracking-wider">
+                계정
+              </div>
+              
+              {/* 마이페이지 링크 */}
+              <a 
+                href="http://localhost:8060/employee/mypage" 
+                className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-blue-50 hover:text-blue-600 transition-colors"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                  <circle cx="12" cy="7" r="4"></circle>
+                </svg>
+                마이페이지
+              </a>
+
+              <div className="h-px bg-slate-100 my-1"></div>
+
+              {/* 로그아웃 버튼 */}
+              <button 
+                onClick={handleLogout}
+                className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors text-left"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                  <polyline points="16 17 21 12 16 7"></polyline>
+                  <line x1="21" y1="12" x2="9" y2="12"></line>
+                </svg>
+                로그아웃
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default Header;

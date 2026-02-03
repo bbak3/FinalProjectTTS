@@ -1,0 +1,248 @@
+import React, { useEffect, useState } from 'react';
+import api from '../api/axios';
+import { useNavigate } from 'react-router-dom';
+
+const Dashboard = () => {
+  const navigate = useNavigate();
+  const [serverMsg, setServerMsg] = useState('');
+  const [emName, setEmName] = useState('');
+  const [roles, setRoles] = useState([]);
+
+  // 백엔드 서버 주소 상수화 시킵시다...
+  const SPRING_URL = "http://localhost:8060";
+
+  useEffect(() => {
+    const initDashboard = async () => {
+      try {
+        // 내 정보 가져오기
+        const res = await api.get('/auth/me');
+        
+        setEmName(res.data.employeeName);
+        setRoles(res.data.roles);
+        setServerMsg('백엔드 연결 🟢');
+
+      } catch (err) {
+        console.error("데이터 로딩 실패:", err);
+        setServerMsg('서버 응답 없음 🔴');
+
+      }
+    };
+    initDashboard();
+  }, []);
+
+  // 권한 체크 함수
+  const hasAnyRole = (...requiredRoles) =>
+    requiredRoles.some(role => roles.includes(role));
+
+  // 마이페이지 이동 함수
+  const handleMypage=()=>{
+    // navigate('/mypage');
+    window.location.href = `${SPRING_URL}/employee/mypage`
+    //
+  }
+
+  // 로그아웃 함수
+  const handleLogout = () => {
+      // 로그아웃시 쿠키 지우고 화면 이동해야함
+      window.location.href = `${SPRING_URL}/logout`
+  };
+
+  // 메뉴 아이템
+  const menuItems = [
+
+    // 1. 의사 (외래)
+    { 
+      icon: "👨‍⚕️",
+      label: "의사(외)",
+      path : `${SPRING_URL}/doctor/outpatient`,
+      allow: ["ROLE_DOCTOR", "ROLE_ADMIN"]
+    },
+
+    // 2. 의사 (입원)
+    { 
+      icon: "🏥",
+      label: "의사(입)",
+      path : `${SPRING_URL}/doctor/inpatient/main`,
+      allow: ["ROLE_DOCTOR", "ROLE_ADMIN"]
+    },
+
+    // 간호사 (외래)
+    { icon: "🩺",
+      label: "외래 간호사",
+      path : `${SPRING_URL}/nurse/outpatientnurse`,
+      allow: ["ROLE_NURSE_OUT", "ROLE_ADMIN"]
+    },
+
+    // 간호사 (입원)
+    { 
+      icon: "🛏️",
+      label: "입원 간호사",
+      path : `${SPRING_URL}/nurse/inpatientnurse`,
+      allow: ["ROLE_NURSE_IN", "ROLE_ADMIN"]
+    },
+    
+    // 관리자의 공지사항
+    // 추후 관리자 랑 공통은 따로 분리할 예정 
+    {
+      icon: "🔊",
+      label: "공지사항",
+      path : `${SPRING_URL}/admin/notice/list`,
+      allow: [
+        "ROLE_DOCTOR",
+        "ROLE_NURSE_OUT",
+        "ROLE_NURSE_IN",
+        "ROLE_ADMIN",
+        "ROLE_RADIOLOGIST",
+        "ROLE_OFFICE",
+        "ROLE_PHARMACIST"
+      ]
+    },
+    
+    // 방사선사 (영상실)
+    { 
+      icon: "💻",
+      label: "방사선사",
+      path : `${SPRING_URL}/radiologist/workview`,
+      allow: ["ROLE_RADIOLOGIST", "ROLE_ADMIN"]
+    },
+    
+    // 원무과
+    { 
+      icon: "📝",
+      label: "원무과",
+      path : `${SPRING_URL}/management/reception`,
+      allow: ["ROLE_OFFICE", "ROLE_ADMIN"]
+    },
+
+    // 물리치료실
+    { 
+      icon: "🩹",
+      label: "물리치료사",
+      path : `${SPRING_URL}/`,
+      allow: ["ROLE_THERAPIST", "ROLE_ADMIN"]
+    },
+    {
+      icon: "💊",
+      label: "약사",
+      path : `${SPRING_URL}/`,
+      allow: ["ROLE_PHARMACIST", "ROLE_ADMIN"]
+    },
+    {
+      icon: "⚙",
+      label: "계정 관리",
+      type: "react",
+      path : "/admin/employees",
+      allow: ["ROLE_ADMIN"]
+    },
+  ];
+
+  return (
+    <div className="flex flex-col h-screen bg-white font-pretendard">
+
+      {/* 헤더 */}
+      <header className="p-8 px-16 flex justify-between items-center">
+        <div className="flex items-center gap-2">
+          <span className="text-3xl font-black tracking-tighter text-slate-900">SB</span>
+          <span className="text-xl font-bold text-slate-700">정형외과</span>
+        </div>
+        {/* 서버 상태 작게 표시 (개발 중에만 보임) */}
+        <span className="text-xs text-gray-400">{serverMsg}</span>
+      </header>
+
+      {/* 메인 */}
+      <main className="flex-1 flex items-center justify-center overflow-hidden">
+        <div className="flex items-center gap-20 max-w-7xl w-full px-12">
+
+          {/* 왼쪽 : 이미지 및 프로필 섹션 */}
+          <div className="flex-1 flex flex-col gap-10">
+            {/* 메인 비주얼 이미지 */}
+            <div className="main-visual-container">
+              <img
+                src="https://media.istockphoto.com/id/1334654540/ko/%EB%B2%A1%ED%84%B0/%EA%B1%B4%EA%B0%95-%EA%B4%80%EB%A6%AC-%EA%B2%80%EC%A7%84-%EC%A0%95%ED%98%95-%EC%99%B8%EA%B3%BC-%EC%9D%98%EC%82%AC-%EB%BC%88%EC%99%80-%EC%9D%B8%EA%B0%84%EC%9D%98-%EB%B0%9C-%EC%A0%95%ED%98%95-%EC%99%B8%EA%B3%BC-%EC%9D%98%EC%82%AC-%EC%9D%98%EB%A3%8C-%EC%A7%84%EB%8B%A8-%EB%B0%8F-%EA%B2%80%EC%82%AC-%EB%B0%9C%EC%9D%84%ED%95%98%EA%B3%A0-%EB%B0%9C-%EB%B3%80%ED%98%95-%EB%B0%9C%EC%9D%98-%EB%B3%91%EB%A6%AC%ED%95%99-%ED%8F%89%ED%8F%89%ED%95%9C-%EB%B0%9C-%EA%B4%80%EC%A0%88-%EB%8B%A4%EB%A6%AC-%ED%86%B5%EC%A6%9D-%EB%B2%A1%ED%84%B0.jpg?s=612x612&w=0&k=20&c=jTDI0Dzh1hoXcZAUSzHmkMevmWNYlyT21p389qAEt3g="
+                alt="Medical Visual"
+                className="w-full h-full object-cover"
+              />
+            </div>
+
+            {/* 프로필 및 버튼 */}
+            <div className="flex flex-col gap-8 px-2">
+              <div className="flex items-center gap-3 bg-slate-50 self-start px-5 py-2.5 rounded-full border border-slate-100 shadow-sm">
+                <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-sm">
+                  👤
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-slate-800 text-lg">{emName}</span>
+                  
+                </div>
+              </div>
+
+              <div className="flex gap-8 items-center pl-2">
+                <div className="relative">
+                  <button className="util-btn" onClick={handleMypage}>
+                    <span className="text-2xl font-black tracking-tighter text-slate-900">MY</span>
+                  </button>
+                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white"></span>
+                </div>
+                <button className="util-btn" onClick={handleLogout}>
+                  <img src="https://img.icons8.com/?size=100&id=vGj0AluRnTSa&format=png&color=000000" alt="Settings" width="40" />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* 오른쪽 : 메뉴 그리드 섹션 */}
+          <div className="grid grid-cols-3 gap-6 w-1/2">
+            {menuItems.map((item, index) => {
+              const active = hasAnyRole(...item.allow);
+
+              return (
+                <div
+                  key={index}
+                  className={`app-card ${active ? 'cursor-pointer' : 'opacity-30 cursor-not-allowed grayscale'}`}
+                  onClick={() => {
+
+                    // 권한 없는 곳 접근시
+                    if (!active) {
+                      alert("접근 권한 없음!");
+                      return;
+                    }
+
+                    // 리액트! 이렇게하면 안깜빡거린데요
+                    if (item.type === 'react') {
+                        navigate(item.path);
+                        return;
+                    }
+                    
+                    // 아직 path 설정 안된곳은 막아둠
+                    if (!item.path || item.path === `${SPRING_URL}/`) {
+                      alert("🚧 준 비 중 🚧 \n ~ 아직 연결되지 않은 페이지 입니당~ ");
+                      return;
+                    }
+                    // 각 액터별 jsp 연결
+                    window.location.href = item.path;
+                  }}
+                >
+                  <div className="app-icon-box">{item.icon}</div>
+                  <div className="app-label-wrapper">
+                    <p className="app-label">{item.label}</p>
+                    {active && <div className="status-dot-small"></div>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+        </div>
+      </main>
+
+      <footer className="absolute bottom-8 right-10 text-slate-400 text-sm">
+        <button onClick={handleLogout} className="util-btn1 hover:text-slate-800 hover:font-bold">
+          관리자
+        </button>
+      </footer>
+
+    </div>
+  );
+};
+
+export default Dashboard;

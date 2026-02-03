@@ -1,0 +1,362 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import FullCalendar from '@fullcalendar/react';
+import dayGridPlugin from '@fullcalendar/daygrid';
+import timeGridPlugin from '@fullcalendar/timegrid';
+import interactionPlugin from '@fullcalendar/interaction';
+import { 
+  BarChart2, User, Calendar as CalendarIcon, 
+  Home, Bell, ChevronDown, CheckCircle
+} from 'lucide-react';
+import axios from 'axios'; 
+import EventModal from "../../features/admin/EventModal";
+
+//  병원 공통 계정 사번 정의
+const HOSPITAL_COMMON_ID = 26020908;
+
+function CalendarPage() {
+  // === 1. 상태 관리 ===
+  const [viewType, setViewType] = useState('COMMON'); 
+  const [selectedDoctorId, setSelectedDoctorId] = useState(0); 
+  const [events, setEvents] = useState([]); 
+  
+  // 의사 목록 초기화
+  const [doctorList, setDoctorList] = useState([]); 
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState(null);
+  const [selectedDateRange, setSelectedDateRange] = useState(null);
+
+  // === 2. 초기 데이터 로딩 ===
+  
+  // (1) 의사 목록 가져오기
+  useEffect(() => {
+    const fetchDoctors = async () => {
+      try {
+        const res = await axios.get('http://localhost:8060/api/rct/calendar/doctors');
+        
+        if (Array.isArray(res.data)) {
+            setDoctorList(res.data);
+            if (res.data.length > 0) {
+                setSelectedDoctorId(res.data[0].employeeNo);
+            }
+        } else {
+            console.warn("의사 목록 데이터 형식이 배열이 아닙니다:", res.data);
+            setDoctorList([]); 
+        }
+      } catch (err) {
+        console.error("의사 목록 로딩 실패:", err);
+        setDoctorList([]); 
+      }
+    };
+    fetchDoctors();
+  }, []);
+
+  // (2) 일정 가져오기
+  const fetchEvents = useCallback(async () => {
+    try {
+      const empNoParam = viewType === 'COMMON' ? 0 : selectedDoctorId;
+      if (viewType === 'PERSONAL' && empNoParam === 0) return;
+
+      const response = await axios.get('http://localhost:8060/api/rct/calendar/list', {
+        params: { employeeNo: empNoParam }
+      });
+      console.log("일정 로딩 성공:", response.data);
+
+      const dataList = Array.isArray(response.data) ? response.data : [];
+
+      const mappedEvents = dataList.map(item => ({
+        id: String(item.scheduleNo),
+        title: item.title,
+        start: item.start,
+        end: item.end,
+        allDay: item.allDay === 1 || (item.start && !item.start.includes('T')), 
+        backgroundColor: item.backgroundColor,
+        borderColor: item.backgroundColor,
+        extendedProps: {
+            scheduleNo: item.scheduleNo,
+            type: item.type,
+            employeeNo: item.employeeNo,
+            description: item.description
+        }
+      }));
+      setEvents(mappedEvents);
+    } catch (error) {
+      console.error("일정 로딩 실패:", error);
+      setEvents([]); 
+    }
+  }, [viewType, selectedDoctorId]);
+
+  useEffect(() => {
+    fetchEvents();
+  }, [fetchEvents]);
+
+
+  // === 3. 저장/삭제/수정 핸들러 ===
+
+  // ★ [핵심] 저장 핸들러
+  const handleSaveEvent = async (formData) => {
+    
+    // 날짜 포맷 보정
+    let safeStart = formData.start;
+    let safeEnd = formData.end;
+
+    if (safeStart && !safeStart.includes('T')) {
+        safeStart = `${safeStart}T09:00`;
+    }
+    if (safeEnd && !safeEnd.includes('T')) {
+        safeEnd = `${safeEnd}T18:00`;
+    }
+
+    // 전송 객체 생성
+    const eventData = {
+        scheduleNo: selectedEvent ? selectedEvent.extendedProps.scheduleNo : 0,
+        title: formData.title,
+        description: formData.description,
+        start: safeStart, 
+        end: safeEnd,     
+        type: formData.type,
+        
+        // 👇 [수정] 값이 0이거나 없으면 공통 사번(26020908) 사용
+        employeeNo: Number(formData.employeeNo) || HOSPITAL_COMMON_ID,
+        
+        allDay: formData.allDay ? 1 : 0 
+    };
+
+    console.log("서버 전송 데이터:", eventData); 
+
+    try {
+        if (selectedEvent) {
+            await axios.post('http://localhost:8060/api/rct/calendar/update', eventData);
+            alert('일정이 수정되었습니다.');
+        } else {
+            await axios.post('http://localhost:8060/api/rct/calendar/add', eventData);
+            alert('새 일정이 등록되었습니다.');
+        }
+        fetchEvents(); 
+        setIsModalOpen(false);
+    } catch (error) {
+        console.error("저장 실패:", error.response || error);
+        alert('저장 중 오류가 발생했습니다. (콘솔 확인)');
+    }
+  };
+
+  // 삭제 핸들러
+  const handleDeleteEvent = async (eventId) => {
+    if(window.confirm('정말 삭제하시겠습니까?')) {
+        try {
+            await axios.post(`http://localhost:8060/api/rct/calendar/delete/${eventId}`);
+            alert('삭제되었습니다.');
+            fetchEvents();
+            setIsModalOpen(false);
+        } catch (error) {
+            console.error("삭제 실패:", error);
+            alert("삭제 실패");
+        }
+    }
+  };
+
+  // ★ [핵심] 드래그 앤 드롭 
+  const handleEventDrop = async (info) => {
+    if (!window.confirm(`'${info.event.title}' 일정을 이동하시겠습니까?`)) {
+      info.revert();
+      return;
+    }
+
+    let safeStart = info.event.startStr;
+    let safeEnd = info.event.endStr || info.event.startStr;
+    
+    if (!safeStart.includes('T')) safeStart += 'T09:00';
+    if (!safeEnd.includes('T')) safeEnd += 'T18:00';
+
+    safeStart = safeStart.slice(0, 16);
+    safeEnd = safeEnd.slice(0, 16);
+
+    // 👇 [수정] 사번 안전 처리 로직 추가
+    const currentType = info.event.extendedProps.type;
+    let safeEmployeeNo = Number(info.event.extendedProps.employeeNo);
+
+    // 공통 일정이거나 사번이 0이면 -> 지정된 공통 ID(26020908) 사용
+    if (['병원행사', '시설점검', '기타'].includes(currentType) || !safeEmployeeNo) {
+        safeEmployeeNo = HOSPITAL_COMMON_ID;
+    }
+
+    const updatedEvent = {
+        scheduleNo: info.event.extendedProps.scheduleNo,
+        title: info.event.title,
+        start: safeStart,
+        end: safeEnd,
+        type: currentType,
+        employeeNo: safeEmployeeNo, // 수정된 사번 적용
+        description: info.event.extendedProps.description,
+        allDay: info.event.allDay ? 1 : 0
+    };
+
+    try {
+        await axios.post('http://localhost:8060/api/rct/calendar/update', updatedEvent);
+        console.log("일정 이동 성공");
+    } catch (error) {
+        console.error("이동 실패:", error);
+        alert("이동 중 오류가 발생했습니다.");
+        info.revert();
+    }
+  };
+
+  const handleDateSelect = (selectInfo) => {
+    setSelectedEvent(null); 
+    setSelectedDateRange(selectInfo); 
+    setIsModalOpen(true);
+  };
+
+  const handleEventClick = (clickInfo) => {
+    setSelectedEvent(clickInfo.event);
+    setSelectedDateRange({ 
+      startStr: clickInfo.event.startStr, 
+      endStr: clickInfo.event.endStr || clickInfo.event.startStr,
+      allDay: clickInfo.event.allDay 
+    });
+    setIsModalOpen(true);
+  };
+
+  return (
+    <div className="flex h-screen bg-white text-slate-800 font-sans">
+      <EventModal 
+        isOpen={isModalOpen} 
+        onClose={() => setIsModalOpen(false)} 
+        onSave={handleSaveEvent}
+        onDelete={handleDeleteEvent}
+        initialDate={selectedDateRange} 
+        eventData={selectedEvent}       
+        currentViewType={viewType}
+        currentDoctorId={selectedDoctorId}
+        doctorList={doctorList} 
+      />
+
+      {/* 헤더 */}
+      <header className="fixed top-0 left-0 right-0 h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 z-50">
+        <div className="flex items-center gap-2">
+          <span className="text-2xl font-black text-blue-600 tracking-tighter">SB</span>
+          <span className="text-xl font-bold text-slate-900 tracking-tight">정형외과</span>
+        </div>
+        <div className="flex items-center gap-5 text-slate-400">
+           <button className="hover:text-blue-600 transition"><Home strokeWidth={2} size={20} /></button>
+           <button className="hover:text-blue-600 transition"><Bell strokeWidth={2} size={20} /></button>
+        </div>
+      </header>
+
+      <div className="pt-16 flex w-full h-full">
+        <aside className="w-[70px] bg-white border-r border-slate-200 flex flex-col py-4 gap-2 shrink-0 z-40 items-center">
+          <SidebarItem icon={<BarChart2 size={20} />} label="통계" />
+          <SidebarItem icon={<CalendarIcon size={20} />} label="일정" active />
+          <SidebarItem icon={<User size={20} />} label="계정" />
+        </aside>
+
+        <aside className="w-[240px] bg-white border-r border-slate-200 flex flex-col p-6 shrink-0 hidden md:flex z-30">
+          <div className="mb-6 flex items-center gap-2 border-l-[3px] border-blue-600 pl-3 h-4">
+            <h2 className="text-[14px] font-bold text-slate-800 leading-none">일정 관리 메뉴</h2>
+          </div>
+          
+          <div className="space-y-2">
+            <button 
+              onClick={() => setViewType('COMMON')}
+              className={`w-full text-left px-4 py-3 rounded-lg font-bold text-[13px] flex justify-between items-center transition-all
+                ${viewType === 'COMMON' ? 'bg-blue-50 text-blue-600' : 'text-slate-500 hover:bg-slate-50'}`}
+            >
+              병원 공통 일정
+              {viewType === 'COMMON' && <CheckCircle size={14} />}
+            </button>
+
+            <div className={`rounded-lg transition-all ${viewType === 'PERSONAL' ? 'bg-blue-50/50 border border-blue-100' : ''}`}>
+              <button 
+                onClick={() => setViewType('PERSONAL')}
+                className={`w-full text-left px-4 py-3 rounded-lg font-bold text-[13px] flex justify-between items-center transition-all
+                  ${viewType === 'PERSONAL' ? 'text-blue-600' : 'text-slate-500 hover:bg-slate-50'}`}
+              >
+                의사별 개인 일정
+                {viewType === 'PERSONAL' && <CheckCircle size={14} />}
+              </button>
+              
+              {viewType === 'PERSONAL' && (
+                <div className="px-4 pb-3 animate-fadeIn">
+                  <div className="relative">
+                    <select 
+                      value={selectedDoctorId}
+                      onChange={(e) => setSelectedDoctorId(Number(e.target.value))}
+                      className="w-full p-2.5 pl-3 pr-8 text-xs font-bold text-slate-700 bg-white border border-blue-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none cursor-pointer shadow-sm"
+                    >
+                      {(!Array.isArray(doctorList) || doctorList.length === 0) ? (
+                         <option value="0">목록 없음</option>
+                      ) : (
+                         doctorList.map((doc) => (
+                           <option key={doc.employeeNo} value={doc.employeeNo}>
+                             {doc.empName}
+                           </option>
+                         ))
+                      )}
+                    </select>
+                    <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </aside>
+
+        <main className="flex-1 p-8 bg-white flex flex-col h-full overflow-hidden">
+          <div className="flex justify-between items-end mb-5 shrink-0">
+            <div>
+              <h2 className="text-xl font-bold text-slate-900 mb-1">
+                {viewType === 'COMMON' ? '병원 공통 일정' : '의사별 개별 일정'}
+              </h2>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                {viewType === 'COMMON' ? 'HOSPITAL SHARED CALENDAR' : `DOCTOR ID: ${selectedDoctorId}`}
+              </p>
+            </div>
+            <button 
+              onClick={() => { setSelectedEvent(null); setIsModalOpen(true); }}
+              className="px-4 py-2 bg-blue-600 text-white rounded-[6px] text-[13px] font-bold hover:bg-blue-700 transition shadow-sm"
+            >
+              + 일정 생성
+            </button>
+          </div>
+
+          <div className="flex-1 border border-slate-200 rounded-xl p-6 bg-white overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.04)]">
+            <FullCalendar
+              key={`${viewType}-${selectedDoctorId}`}
+              plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+              initialView="dayGridMonth"
+              headerToolbar={{
+                left: 'prev,next today',
+                center: 'title',
+                right: 'dayGridMonth,timeGridWeek,timeGridDay' 
+              }}
+              slotMinTime="08:00:00"
+              slotMaxTime="20:00:00"
+              locale="ko"
+              height="100%"
+              events={events} 
+              editable={true}
+              selectable={true}
+              dayMaxEvents={true}
+              select={handleDateSelect}
+              eventClick={handleEventClick}
+              eventDrop={handleEventDrop}
+            />
+          </div>
+        </main>
+      </div>
+    </div>
+  );
+}
+
+function SidebarItem({ icon, label, active }) {
+  return (
+    <button className={`w-14 h-14 flex flex-col items-center justify-center gap-1 rounded-xl transition-all
+      ${active ? 'text-slate-900 bg-slate-50' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'}`}>
+      <div className={active ? 'text-slate-900' : 'text-slate-400'}>
+        {icon}
+      </div>
+      <span className={`text-[10px] tracking-tight ${active ? 'font-bold' : 'font-medium'}`}>{label}</span>
+    </button>
+  );
+}
+
+export default CalendarPage;

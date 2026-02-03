@@ -1,0 +1,75 @@
+import React from 'react';
+import { Link, useLocation } from 'react-router-dom';
+
+function LeftAdmin() {
+  const location = useLocation(); // 현재 URL 경로를 가져오기 위함 (선택사항)
+
+  // 상단 메뉴 그룹 데이터
+  const mainMenus = [
+    { id: 'gnb-dashboard', label: '대시보드', icon: 'icon-desktop', path: '/dashboard' },
+    { id: 'gnb-outpatient', label: '외래 진료', icon: 'icon-doctor-bag', path: '/nurse/outpatientnurse' },
+    { id: 'gnb-nurse', label: '입원 진료', icon: 'icon-bed', path: '/nurse/inpatientnurse' },
+    { id: 'gnb-consultation', label: '협진', icon: 'icon-users', path: '/consultation/main' },
+    { id: 'gnb-certificate', label: '환자 서류', icon: 'icon-file', path: '/certificate/main' },
+    { id: 'gnb-order', label: '물품 발주', icon: 'icon-box', path: '/order/drug' },
+    { id: 'gnb-myorder', label: '나의 오더', icon: 'icon-folder', path: '/myorder' },
+  ];
+
+  // 하단 메뉴 그룹 데이터
+  const bottomMenus = [
+    { id: 'gnb-notice', label: '공지사항', icon: 'icon-megaphone', path: '/notice/list' },
+    { id: 'gnb-calendar', label: '일정', icon: 'icon-calendar', path: '/calendar' },
+    { id: 'gnb-messenger', label: '메신저', icon: 'icon-chat-messages', path: '/messenger' },
+  ];
+
+  // 공통 메뉴 렌더링 함수
+  const renderMenuItem = (menu) => {
+    // 현재 경로 확인 (선택 사항)
+    const isActive = window.location.pathname === menu.path;
+    
+    return (
+      <li key={menu.id}>
+        <Link
+          to={menu.path}
+          id={menu.id}
+          className={`
+            flex flex-col items-center justify-center py-3 px-1 rounded-lg transition-colors duration-200
+            ${isActive ? 'bg-blue-50 text-blue-600' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}
+          `}
+        >
+          {/* 기존 CSS 클래스(icon 등)가 글로벌로 있다면 그대로 적용됩니다 */}
+          <i className={`sidebar-nav-icon icon ${menu.icon} text-xl mb-1`}></i>
+          <span className="text-xs font-medium">{menu.label}</span>
+        </Link>
+      </li>
+    );
+  };
+
+  return (
+    <aside className="side-bar flex w-full shrink-0 flex-col border-r border-neutral-200 bg-white h-full">
+      
+      {/* 로고 영역이 필요하다면 여기에 추가 */}
+      {/* <div className="h-16 flex items-center justify-center border-b border-gray-100">Logo</div> */}
+
+      {/* 스크롤 영역 */}
+      <nav className="side-nav flex-1 overflow-y-auto no-scrollbar px-2 py-4">
+        
+        {/* 첫 번째 그룹 */}
+        <ul className="flex flex-col gap-1 mb-6">
+          {mainMenus.map(menu => renderMenuItem(menu))}
+        </ul>
+
+        {/* 구분선 (필요 시) */}
+        <div className="border-t border-gray-100 my-2 mx-2"></div>
+
+        {/* 두 번째 그룹 */}
+        <ul className="flex flex-col gap-1 mt-2">
+          {bottomMenus.map(menu => renderMenuItem(menu))}
+        </ul>
+        
+      </nav>
+    </aside>
+  );
+}
+
+export default LeftAdmin;
